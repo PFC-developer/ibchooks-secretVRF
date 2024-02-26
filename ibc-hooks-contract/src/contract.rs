@@ -1,16 +1,16 @@
+use base64::{engine::general_purpose, Engine as _};
 use cosmwasm_std::{
-    entry_point, to_binary, CosmosMsg, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Response,
-    StdResult, StdError, Uint64, Coin, Binary, Deps
+    entry_point, to_binary, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, IbcMsg, IbcTimeout,
+    MessageInfo, Response, StdError, StdResult, Uint64,
+};
+use secret_toolkit::{
+    crypto::secp256k1::{PrivateKey, PublicKey},
+    crypto::{sha_256, ContractPrng},
 };
 
 use crate::{
     msg::{IBCLifecycleComplete, InstantiateMsg, Msg, PublicKeyResponse, QueryMsg},
-    state::{KeyPair, State, CONFIG}
-};
-
-use secret_toolkit::{
-    crypto::secp256k1::{PrivateKey, PublicKey},
-    crypto::{sha_256, ContractPrng},
+    state::{KeyPair, State, CONFIG},
 };
 
 #[entry_point]
@@ -39,10 +39,19 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: Msg) -> StdResul
         Msg::RequestRandom {
             job_id,
             num_words,
-            callback_channel_id, 
-            callback_to_address, 
-            timeout_sec_from_now
-        } => try_execute_random(deps, env, info, job_id, num_words, callback_channel_id, callback_to_address, timeout_sec_from_now),
+            callback_channel_id,
+            callback_to_address,
+            timeout_sec_from_now,
+        } => try_execute_random(
+            deps,
+            env,
+            info,
+            job_id,
+            num_words,
+            callback_channel_id,
+            callback_to_address,
+            timeout_sec_from_now,
+        ),
         Msg::IBCLifecycleComplete(IBCLifecycleComplete::IBCAck {
             channel,
             sequence,
@@ -72,8 +81,17 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: Msg) -> StdResul
     }
 }
 
-pub fn try_execute_random(deps: DepsMut, env: Env, info: MessageInfo, job_id: String, num_words: Uint64, callback_channel_id: String, callback_to_address: String, timeout_sec_from_now: Uint64) -> Result<Response, StdError> {
-     
+#[allow(clippy::too_many_arguments)]
+pub fn try_execute_random(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    job_id: String,
+    num_words: Uint64,
+    callback_channel_id: String,
+    callback_to_address: String,
+    timeout_sec_from_now: Uint64,
+) -> Result<Response, StdError> {
     //get base random from secret VRF
     let base_random = match env.block.random {
         Some(random_value) => random_value,
@@ -86,12 +104,12 @@ pub fn try_execute_random(deps: DepsMut, env: Env, info: MessageInfo, job_id: St
     for i in 0..num_words.into() {
         let mut data = base_random.0.clone();
         data.extend_from_slice(&i.to_be_bytes());
-        let hashed_number = sha_256(&data); 
-        random_numbers.extend_from_slice(hashed_number.as_slice()); 
+        let hashed_number = sha_256(&data);
+        random_numbers.extend_from_slice(hashed_number.as_slice());
     }
 
     //encode the result as base64 for transfer
-    let random_numbers_base64 = base64::encode(random_numbers);
+    let random_numbers_base64 = general_purpose::STANDARD.encode(random_numbers);
 
     let config = CONFIG.load(deps.storage)?;
 
@@ -99,10 +117,17 @@ pub fn try_execute_random(deps: DepsMut, env: Env, info: MessageInfo, job_id: St
     let mut signing_key_bytes = [0u8; 32];
     signing_key_bytes.copy_from_slice(config.signing_keys.sk.as_slice());
 
-    // used in production to create signature. 
-    //This will automatically do a sha256 of the bytes and then sign them. 
+    // used in production to create signature.
+    //This will automatically do a sha256 of the bytes and then sign them.
     //KEEP THIS IN MIND WHEN VERIFYING THE SIGNATURE!!
-    let signature = deps.api.secp256k1_sign([job_id.clone(), random_numbers_base64.clone()].concat().as_bytes(), &signing_key_bytes)
+    let signature = deps
+        .api
+        .secp256k1_sign(
+            [job_id.clone(), random_numbers_base64.clone()]
+                .concat()
+                .as_bytes(),
+            &signing_key_bytes,
+        )
         .map_err(|err| StdError::generic_err(err.to_string()))?;
 
     let callback_memo = format!(
@@ -110,14 +135,17 @@ pub fn try_execute_random(deps: DepsMut, env: Env, info: MessageInfo, job_id: St
         callback_to_address,
         job_id,
         random_numbers_base64,
-        base64::encode(signature)
+        general_purpose::STANDARD.encode(signature)
     );
-    
+
     Ok(
         Response::default().add_messages(vec![CosmosMsg::Ibc(IbcMsg::Transfer {
             channel_id: callback_channel_id,
             to_address: callback_to_address,
-            amount: Coin { denom: info.funds[0].denom.clone(), amount: info.funds[0].amount.clone() },
+            amount: Coin {
+                denom: info.funds[0].denom.clone(),
+                amount: info.funds[0].amount,
+            },
             timeout: IbcTimeout::with_timestamp(
                 env.block.time.plus_seconds(timeout_sec_from_now.u64()),
             ),
@@ -126,10 +154,7 @@ pub fn try_execute_random(deps: DepsMut, env: Env, info: MessageInfo, job_id: St
     )
 }
 
-pub fn generate_keypair(
-    env: &Env,
-) -> Result<(PrivateKey, PublicKey), StdError> {
-
+pub fn generate_keypair(env: &Env) -> Result<(PrivateKey, PublicKey), StdError> {
     // generate and return key pair
     let mut rng = ContractPrng::from_env(env);
     let sk = PrivateKey::parse(&rng.rand_bytes())?;
@@ -164,8 +189,7 @@ fn create_signing_keys(deps: DepsMut, env: Env) -> StdResult<Response> {
 
     let signing_pubkey = signing_keys.pk.to_base64();
 
-    Ok(Response::new()
-        .add_attribute_plaintext("signing_pubkey", signing_pubkey))
+    Ok(Response::new().add_attribute_plaintext("signing_pubkey", signing_pubkey))
 }
 
 #[entry_point]

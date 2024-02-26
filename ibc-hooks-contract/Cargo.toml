@@ -1,6 +1,6 @@
 [package]
 name = "ibc-hooks-contract"
-version = "0.0.1"
+version = "0.2.0"
 authors = ["SCRT Labs <info@scrtlabs.com>"]
 edition = "2021"
 description = "A Test contract intended to use in integration tests for the Secret Netowrk"

@@ -1,4 +1,4 @@
-use cosmwasm_std::{Uint64, Binary};
+use cosmwasm_std::{Binary, Uint64};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +13,7 @@ pub enum Msg {
         num_words: Uint64,
         callback_channel_id: String,
         callback_to_address: String,
-        timeout_sec_from_now: Uint64
+        timeout_sec_from_now: Uint64,
     },
     #[serde(rename = "ibc_lifecycle_complete")]
     IBCLifecycleComplete(IBCLifecycleComplete),

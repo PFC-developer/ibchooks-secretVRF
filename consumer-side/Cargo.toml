@@ -1,10 +1,10 @@
 [package]
 name = "secret_ibc_rng_consumer_side_proxy"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["seanrad"]
 edition = "2021"
 description = "IBC - RNG consumer side proxy for Secret Network (to be run on consumer side)"
-license = "MIT"
+license = "Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -2,3 +2,12 @@
 consumer-side/artifacts
 consumer-side/node/node_modules
 .env*
+/.idea
+# target files
+target/*
+/consumer-side/target
+/ibc-hooks-contract/target
+constract.wasm.gz
+contract.wasm*
+contract.wasm.gz*
+/consumer_instantiate.json

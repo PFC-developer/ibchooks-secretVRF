@@ -1,5 +1,5 @@
 use cosmwasm_std::{Binary, CanonicalAddr};
-use secret_toolkit::storage::{Item};
+use secret_toolkit::storage::Item;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
