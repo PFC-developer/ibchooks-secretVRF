@@ -1,0 +1,69 @@
+
+KEY=rng-test
+HARPOON_KEY=demo
+
+cd ibc-hooks-contract
+gunzip contract.wasm.gz
+
+secretcli tx compute store ./contract.wasm \
+    --source "https://github.com/PFC-developer/ibchooks-secretVRF/tree/master/ibc-hooks-contract" \
+    --from $KEY \
+    --gas 4000000
+
+tx=38428F8002AAD9BF0914DD25DBAD92776DFC063E0DE6EDEE3512DA2A309D8CB5
+
+CODE_ID=$( secretcli query tx $tx -o json  | jq -r '.logs[].events[] |select(.type=="message").attributes[]| select(.key=="code_id").value' )
+HASH=$(secretcli query compute contract-hash-by-id $CODE_ID )
+
+secretcli tx compute instantiate $CODE_ID '{ }' --label 'PFC-IBC-rand-proxy-1' --from $KEY --code-hash $HASH --gas 1000000
+
+tx_i=73C4141DB40460EBC08C56612F587EED66938149B1C654A4651BEFA398960D8F
+
+address=$(secretcli query tx $tx_i -o json |jq -r '.logs[].events[]| select(.type=="message").attributes[] | select(.key == "contract_address").value ')
+
+vrf_signing_key=$(secretcli query wasm   query $address '{"get_public_key":{}}'|jq -r .signing_keys )
+
+cat > ../consumer_instantiate.json <<EOF
+{
+    "secret_vrf_contract_address": "$address",
+    "secret_vrf_verification_key": "$vrf_signing_key",
+    "secret_transfer_channel_id": "channel-43",
+    "chain_transfer_channel_id" :"channel-48"
+}
+EOF
+
+cd ../consumer-side
+
+kujirad tx wasm store ./artifacts/secret_ibc_rng_consumer_side_proxy.wasm \
+    --from $HARPOON_KEY \
+    --gas-prices 0.01ukuji \
+    --gas-adjustment 1.3 \
+    --gas auto
+
+tx_cs=193CDF8308FD3F8487E98A2DF84C77A6376FD23E78F4223F6AFDC78D7A985EA2
+CS_CODE_ID=$( kujirad query tx $tx_cs -o json  | jq -r '.logs[].events[] |select(.type=="store_code").attributes[]| select(.key=="code_id").value' )
+CS_JSON=$(cat ../consumer_instantiate.json)
+
+kujirad tx wasm instantiate $CS_CODE_ID "$CS_JSON" \
+    --label 'PFC-IBC-rand-proxy-3' \
+    --from $HARPOON_KEY \
+    --gas-prices 0.01ukuji \
+    --gas-adjustment 1.3 \
+    --gas auto \
+    --no-admin
+
+tx_cs_i=293644C3E900319D0A03BC15DA83FAD05E26B0D3DF6B871F5E7DD51F0EFD7A1A
+
+c_address=$(kujirad query tx $tx_cs_i -o json  | jq -r '.logs[].events[] | select(.type=="instantiate" ).attributes[] | select(.key =="_contract_address").value  ' )
+
+kujirad query wasm cs smart $c_address '{"config":{}}'
+
+kujirad query wasm cs smart $c_address '{"last":{}}'
+
+kujira tx wasm exec $c_address '{"request_random":{"job_id":"420"}}' \
+    --amount 1ukuji -y \
+     --from $HARPOON_KEY \
+    --gas-prices 0.01ukuji \
+    --gas-adjustment 1.3 \
+    --gas auto
+
