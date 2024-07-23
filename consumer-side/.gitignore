@@ -1,6 +1,6 @@
 # target files
 target/*
-
+/.idea
 constract.wasm.gz
 contract.wasm*
 contract.wasm.gz*

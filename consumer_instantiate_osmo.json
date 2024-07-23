@@ -1,0 +1,6 @@
+{
+    "secret_vrf_contract_address": "secret1qswq34cy6d0zjulfkppqcrqdwqhp42un76gej7",
+    "secret_vrf_verification_key": "BPS4MXnMJyaEFnZyFbedfNaCighXSPgQfAcOis+EUAX2s5gbzh/cM4nileJqzSKaqgcFDwPYjqbAfxNFQC+Q4Bk=",
+    "secret_transfer_channel_id": "channel-53",
+    "chain_transfer_channel_id" :"channel-7273"
+}

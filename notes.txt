@@ -33,6 +33,8 @@ cat > ../consumer_instantiate.json <<EOF
 EOF
 
 cd ../consumer-side
+osmosisd tx wasm store ./artifacts/secret_ibc_rng_consumer_side_proxy.wasm  --from pfc-alt  --gas-prices 1uosmo  --gas-adjustment 1.3 \
+    --gas auto
 
 kujirad tx wasm store ./artifacts/secret_ibc_rng_consumer_side_proxy.wasm \
     --from $HARPOON_KEY \
@@ -40,9 +42,22 @@ kujirad tx wasm store ./artifacts/secret_ibc_rng_consumer_side_proxy.wasm \
     --gas-adjustment 1.3 \
     --gas auto
 
-tx_cs=193CDF8308FD3F8487E98A2DF84C77A6376FD23E78F4223F6AFDC78D7A985EA2
+injectived tx wasm store ./artifacts/secret_ibc_rng_consumer_side_proxy.wasm \
+    --from test-sign \
+    --gas-prices 160000000inj \
+    --gas-adjustment 1.3 \
+    --gas auto
+
+tx_cs=4D603964C9574D81646889C44E26F9BD5062C3000B35C07F90130C34EE35694A
+CS_CODE_ID=$( osmosisd query tx $tx_cs -o json  | jq -r '.events[] |select(.type=="store_code").attributes[]| select(.key=="code_id").value' )
+CS_CODE_ID=7872
+CS_JSON=$(cat ../consumer_instantiate_osmo.json)
+
 CS_CODE_ID=$( kujirad query tx $tx_cs -o json  | jq -r '.logs[].events[] |select(.type=="store_code").attributes[]| select(.key=="code_id").value' )
 CS_JSON=$(cat ../consumer_instantiate.json)
+
+CS_CODE_ID=$( injectived query tx $tx_cs -o json  | jq -r '.events[] |select(.type=="cosmwasm.wasm.v1.EventCodeStored").attributes[]| select(.key=="code_id").value' )
+CS_JSON=$(cat ../consumer_instantiate_inj-888.json)
 
 kujirad tx wasm instantiate $CS_CODE_ID "$CS_JSON" \
     --label 'PFC-IBC-rand-proxy-3' \
@@ -52,12 +67,31 @@ kujirad tx wasm instantiate $CS_CODE_ID "$CS_JSON" \
     --gas auto \
     --no-admin
 
-tx_cs_i=293644C3E900319D0A03BC15DA83FAD05E26B0D3DF6B871F5E7DD51F0EFD7A1A
+osmosisd tx wasm instantiate $CS_CODE_ID "$CS_JSON" \
+    --label 'PFC-IBC-rand-proxy-1' \
+    --from pfc-alt \
+     --gas-prices 1uosmo  \
+    --gas-adjustment 1.3 \
+    --gas auto \
+    --no-admin
+
+injectived tx wasm instantiate $CS_CODE_ID "$CS_JSON" \
+    --label 'PFC-IBC-rand-proxy-1' \
+     --from test-sign \
+    --gas-prices 160000000inj \
+    --gas-adjustment 1.3 \
+    --gas auto \
+    --no-admin
+
+tx_cs_i=D9F159FFC91C6D16601E00769BA32D8DAFFAEE54120CF3A3F2ADACAC64ECBEB1
 
 c_address=$(kujirad query tx $tx_cs_i -o json  | jq -r '.logs[].events[] | select(.type=="instantiate" ).attributes[] | select(.key =="_contract_address").value  ' )
+c_address=$(osmosisd query tx $tx_cs_i -o json  | jq -r '.events[] | select(.type=="instantiate" ).attributes[] | select(.key =="_contract_address").value  ' )
+c_address=$(injectived query tx $tx_cs_i -o json  | jq -r '.events[] | select(.type=="instantiate" ).attributes[] | select(.key =="_contract_address").value  ' )
 
+# osmo1lpcg80npzcf2dmdmw56ddx4fg272mfp46lpnqp9zmrvysdflzv7sf6062e
+# inj1pgn7ujq4j3cmfvh43s7tkt55w9wgp80frdcc36
 kujirad query wasm cs smart $c_address '{"config":{}}'
-
 kujirad query wasm cs smart $c_address '{"last":{}}'
 
 kujira tx wasm exec $c_address '{"request_random":{"job_id":"420"}}' \
@@ -67,3 +101,26 @@ kujira tx wasm exec $c_address '{"request_random":{"job_id":"420"}}' \
     --gas-adjustment 1.3 \
     --gas auto
 
+osmosisd tx wasm exec $c_address '{"request_random":{"job_id":"420"}}' \
+    --amount 1uosmo -y \
+     --from pfc-alt \
+    --gas-prices 1uosmo \
+    --gas-adjustment 1.3 \
+    --gas auto
+
+osmosisd tx wasm exec osmo1lpcg80npzcf2dmdmw56ddx4fg272mfp46lpnqp9zmrvysdflzv7sf6062e '{"request_random":{"job_id":"420"}}' \
+    --amount 1uosmo -y \
+     --from YOURKEY \
+    --gas-prices 1uosmo \
+    --gas-adjustment 1.3 \
+    --gas auto
+
+injectived query wasm cs smart $c_address '{"config":{}}'
+injectived query wasm cs smart $c_address '{"last":{}}'
+
+injectived tx wasm exec $c_address '{"request_random":{"job_id":"420"}}' \
+    --amount 1inj -y \
+  --from test-sign \
+    --gas-prices 160000000inj \
+    --gas-adjustment 1.3 \
+    --gas auto
